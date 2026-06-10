@@ -27,30 +27,21 @@ export async function getResultData(): Promise<ResultData> {
     return { participantCount: 0, matchDistributions: [] };
   }
 
-  const [{ data: participants, error: participantsError }, { data: matches, error: matchesError }, distribution] =
-    await Promise.all([
-      supabase
-        .from("participants")
-        .select("id")
-        .eq("event_id", event.id),
-      supabase
-        .from("matches")
-        .select("*")
-        .eq("event_id", event.id)
-        .eq("is_open", true)
-        .order("display_order", { ascending: true })
-        .returns<MatchRow[]>(),
-      supabase
-        .from("score_distribution")
-        .select("*")
-        .eq("event_id", event.id)
-        .order("percentage", { ascending: false })
-        .returns<ScoreDistributionRow[]>(),
-    ]);
-
-  if (participantsError) {
-    throw new Error("참여자 수를 불러오지 못했습니다.");
-  }
+  const [{ data: matches, error: matchesError }, distribution] = await Promise.all([
+    supabase
+      .from("matches")
+      .select("*")
+      .eq("event_id", event.id)
+      .eq("is_open", true)
+      .order("display_order", { ascending: true })
+      .returns<MatchRow[]>(),
+    supabase
+      .from("score_distribution")
+      .select("*")
+      .eq("event_id", event.id)
+      .order("percentage", { ascending: false })
+      .returns<ScoreDistributionRow[]>(),
+  ]);
 
   if (matchesError) {
     throw new Error("경기 정보를 불러오지 못했습니다.");
@@ -60,8 +51,21 @@ export async function getResultData(): Promise<ResultData> {
     throw new Error("예측 비율을 불러오지 못했습니다.");
   }
 
+  const matchIds = (matches ?? []).map((match) => match.id);
+  const { count: participantCount, error: participantsError } =
+    matchIds.length > 0
+      ? await supabase
+          .from("participants")
+          .select("id", { count: "exact", head: true })
+          .in("match_id", matchIds)
+      : { count: 0, error: null };
+
+  if (participantsError) {
+    throw new Error("참여자 수를 불러오지 못했습니다.");
+  }
+
   return {
-    participantCount: participants?.length ?? 0,
+    participantCount: participantCount ?? 0,
     matchDistributions: buildMatchDistributions(matches ?? [], distribution.data ?? []),
   };
 }

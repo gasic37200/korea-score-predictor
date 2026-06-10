@@ -10,14 +10,14 @@
 ## 수집 목적
 
 - 닉네임은 실명 대신 참여자를 구분하기 위해 사용한다.
-- 휴대폰 번호는 중복 참여를 막고, 이벤트 운영상 당첨자 연락이 필요한 경우에 사용한다.
+- 휴대폰 번호는 경기별 중복 참여를 막고, 이벤트 운영상 당첨자 연락이 필요한 경우에 사용한다.
 - 스코어 예측은 전체 예측 비율을 계산하기 위해 사용한다.
 - 제출 시간은 관리자 확인과 CSV 내보내기에 사용한다.
 
 ## 휴대폰 번호 해시와 마스킹
 
 - 휴대폰 번호는 처리 전에 숫자만 남기는 방식으로 정규화한다.
-- 중복 참여 확인에는 `phone_hash`를 사용한다.
+- 중복 참여 확인에는 `match_id`와 `phone_hash`를 함께 사용한다.
 - `phone_hash`는 HMAC SHA-256과 `PHONE_HASH_SECRET`으로 생성한다.
 - `PHONE_HASH_SECRET`은 서버 사이드 환경 변수로만 관리한다.
 - 관리자 화면에는 `010-****-1234` 형태의 마스킹된 번호만 보여준다.
@@ -26,7 +26,7 @@
 
 ## 데이터베이스 개인정보 설계
 
-- `participants.phone_hash`는 중복 참여 확인용이며 원본 번호를 대체한다.
+- `participants.match_id`와 `participants.phone_hash`는 경기별 중복 참여 확인용이며 원본 번호를 대체한다.
 - `participants.phone_last4`는 관리자 마스킹 표시와 운영 확인에만 사용한다.
 - `participants.encrypted_phone`은 선택 필드이며, 당첨자 연락이 필요할 때만 사용한다.
 - `predictions`와 집계 view에는 휴대폰 번호 관련 값이 포함되지 않는다.
@@ -36,7 +36,7 @@
 
 - 브라우저는 원본 휴대폰 번호를 Supabase에 직접 저장하지 않는다.
 - server action이 휴대폰 번호를 정규화하고 서버 환경 변수로 해시한다.
-- Supabase 저장에는 `phone_hash`와 `phone_last4`만 사용한다.
+- Supabase 저장에는 `match_id`, `phone_hash`, `phone_last4`를 사용한다.
 - 서비스 role key는 server action에서만 사용하며 client component로 전달하지 않는다.
 - 제출 실패 시 입력값을 화면에 유지하지만, 원본 휴대폰 번호를 DB에 저장하지 않는 원칙은 유지한다.
 

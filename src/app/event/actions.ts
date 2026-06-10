@@ -139,23 +139,54 @@ export async function submitPredictions(
     const phoneLast4 = parsed.data.phone.slice(-4);
     const encryptedPhone = encryptPhoneNumber(parsed.data.phone);
 
-    const { data: participant, error: participantError } = await supabase
+    const matchPredictions = predictions.data.map((prediction, index) => ({
+      match: openMatches[index],
+      prediction,
+    }));
+    const matchIds = matchPredictions.map(({ match }) => match.id);
+
+    const { data: duplicateParticipants, error: duplicateError } = await supabase
       .from("participants")
-      .insert({
-        event_id: eventId,
-        nickname: parsed.data.nickname,
-        phone_hash: phoneHash,
-        phone_last4: phoneLast4,
-        encrypted_phone: encryptedPhone,
-      })
       .select("id")
-      .single();
+      .eq("phone_hash", phoneHash)
+      .in("match_id", matchIds)
+      .limit(1);
+
+    if (duplicateError) {
+      return {
+        status: "error",
+        message: `참여 이력을 확인하지 못했습니다. (${duplicateError.message})`,
+        values: submittedValues,
+      };
+    }
+
+    if ((duplicateParticipants ?? []).length > 0) {
+      return {
+        status: "error",
+        message: "이미 이 경기에 참여한 휴대폰 번호입니다. 다른 경기는 다시 참여할 수 있습니다.",
+        values: submittedValues,
+      };
+    }
+
+    const { data: participants, error: participantError } = await supabase
+      .from("participants")
+      .insert(
+        matchPredictions.map(({ match }) => ({
+          event_id: eventId,
+          match_id: match.id,
+          nickname: parsed.data.nickname,
+          phone_hash: phoneHash,
+          phone_last4: phoneLast4,
+          encrypted_phone: encryptedPhone,
+        })),
+      )
+      .select("id,match_id");
 
     if (participantError) {
       if (participantError.code === "23505") {
         return {
           status: "error",
-          message: "이미 참여한 휴대폰 번호입니다. 결과 페이지에서 예측 현황을 확인해 주세요.",
+          message: "이미 이 경기에 참여한 휴대폰 번호입니다. 다른 경기는 다시 참여할 수 있습니다.",
           values: submittedValues,
         };
       }
@@ -167,10 +198,31 @@ export async function submitPredictions(
       };
     }
 
-    const predictionRows = predictions.data.map((prediction, index) => ({
+    const participantByMatchId = new Map(
+      (participants ?? []).map((participant) => [participant.match_id, participant.id]),
+    );
+    const missingParticipant = matchPredictions.some(({ match }) => !participantByMatchId.has(match.id));
+
+    if (missingParticipant) {
+      await supabase
+        .from("participants")
+        .delete()
+        .in(
+          "id",
+          (participants ?? []).map((participant) => participant.id),
+        );
+
+      return {
+        status: "error",
+        message: "참여자와 경기 정보를 연결하지 못했습니다. 다시 시도해 주세요.",
+        values: submittedValues,
+      };
+    }
+
+    const predictionRows = matchPredictions.map(({ match, prediction }) => ({
       event_id: eventId,
-      participant_id: participant.id,
-      match_id: openMatches[index].id,
+      participant_id: participantByMatchId.get(match.id) as string,
+      match_id: match.id,
       korea_score: prediction.koreaScore,
       opponent_score: prediction.opponentScore,
     }));
@@ -180,7 +232,13 @@ export async function submitPredictions(
       .insert(predictionRows);
 
     if (predictionsError) {
-      await supabase.from("participants").delete().eq("id", participant.id);
+      await supabase
+        .from("participants")
+        .delete()
+        .in(
+          "id",
+          (participants ?? []).map((participant) => participant.id),
+        );
 
       return {
         status: "error",

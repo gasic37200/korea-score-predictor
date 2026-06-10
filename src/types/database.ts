@@ -26,6 +26,7 @@ export type MatchRow = {
 export type ParticipantRow = {
   id: string;
   event_id: string;
+  match_id: string;
   nickname: string;
   phone_hash: string;
   phone_last4: string;

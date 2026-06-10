@@ -28,6 +28,7 @@ create table if not exists public.matches (
 create table if not exists public.participants (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete cascade,
+  match_id uuid not null references public.matches(id) on delete cascade,
   nickname text not null,
   phone_hash text not null,
   phone_last4 text not null,
@@ -36,7 +37,7 @@ create table if not exists public.participants (
   constraint participants_nickname_length check (char_length(nickname) between 1 and 30),
   constraint participants_phone_hash_length check (char_length(phone_hash) = 64),
   constraint participants_phone_last4_format check (phone_last4 ~ '^[0-9]{4}$'),
-  constraint participants_event_phone_unique unique (event_id, phone_hash)
+  constraint participants_match_phone_unique unique (match_id, phone_hash)
 );
 
 create table if not exists public.predictions (
@@ -57,6 +58,9 @@ create index if not exists matches_event_order_idx
 
 create index if not exists participants_event_created_idx
   on public.participants (event_id, created_at desc);
+
+create index if not exists participants_match_created_idx
+  on public.participants (match_id, created_at desc);
 
 create index if not exists predictions_event_match_idx
   on public.predictions (event_id, match_id);
@@ -86,6 +90,6 @@ alter table public.predictions enable row level security;
 
 comment on table public.events is 'QR 이벤트 단위. MVP는 하나의 월드컵 이벤트를 기본으로 사용한다.';
 comment on table public.matches is '이벤트에 포함된 대한민국 경기 목록과 예측 가능 상태.';
-comment on table public.participants is '참여자 정보. 휴대폰 원본은 기본 저장하지 않고 phone_hash로 중복을 확인한다.';
+comment on table public.participants is '경기별 참여자 정보. 휴대폰 원본은 기본 저장하지 않고 match_id와 phone_hash로 경기별 중복을 확인한다.';
 comment on table public.predictions is '참여자별 경기 스코어 예측.';
 comment on view public.score_distribution is '경기별 스코어 예측 개수와 비율 집계.';

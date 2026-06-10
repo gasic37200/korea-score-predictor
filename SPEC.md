@@ -36,7 +36,7 @@
 - `/admin`은 MVP 수준의 안전한 인증으로 보호한다.
 - `/admin/matches`는 경기 정보를 관리한다.
 - `/admin/export`는 필요한 데이터만 CSV로 내보낸다.
-- 중복 참여는 `event_id + phone_hash`로 차단한다.
+- 중복 참여는 `match_id + phone_hash`로 차단한다.
 
 ## 비목표
 
@@ -59,7 +59,7 @@
 
 - `events`: QR 이벤트 묶음의 제목, slug, 열림 상태, 시작/종료 시간을 저장한다.
 - `matches`: 이벤트별 경기 정보, 예측 마감 시간, 열림 상태, 표시 순서를 저장한다.
-- `participants`: 닉네임, `phone_hash`, `phone_last4`, 선택적 `encrypted_phone`을 저장한다.
+- `participants`: 경기별 닉네임, `match_id`, `phone_hash`, `phone_last4`, 선택적 `encrypted_phone`을 저장한다.
 - `predictions`: 참여자별 경기 예측 점수를 저장한다.
 - `score_distribution` view: 경기별 스코어 조합의 예측 수와 비율을 계산한다.
 
@@ -67,7 +67,7 @@
 
 - `events.slug`는 유일해야 한다.
 - `matches.event_id`는 어떤 QR 이벤트에 속한 경기인지 구분한다.
-- `participants`는 `event_id + phone_hash` 조합으로 중복 참여를 막는다.
+- `participants`는 `match_id + phone_hash` 조합으로 경기별 중복 참여를 막는다.
 - `predictions`는 `participant_id + match_id` 조합으로 한 경기당 한 번만 예측하게 한다.
 - 스코어는 0 이상 20 이하 정수만 허용한다.
 - `phone_hash`는 SHA-256 hex 길이인 64자를 기대한다.
@@ -105,7 +105,7 @@
 - 제출은 `src/app/event/actions.ts` server action에서 처리한다.
 - 클라이언트가 보낸 임시 경기 id를 신뢰하지 않고, 서버에서 `world-cup-2026` 이벤트의 열린 경기 목록을 다시 조회한다.
 - 휴대폰 번호는 정규화 후 `PHONE_HASH_SECRET`으로 HMAC SHA-256 해시한다.
-- 중복 참여는 `participants_event_phone_unique` 제약 조건으로 차단한다.
+- 중복 참여는 `participants_match_phone_unique` 제약 조건으로 경기별 차단한다.
 - 예측 저장 실패 시 방금 생성된 참여자 row를 삭제해 부분 저장을 줄인다.
 - 실제 운영 전 Supabase SQL Editor에서 `supabase/migrations/001_initial_schema.sql`과 `supabase/seed.sql`을 실행해야 한다.
 - 실제 저장에는 `.env.local`의 `SUPABASE_SERVICE_ROLE_KEY`와 `PHONE_HASH_SECRET` 값이 필요하다.
@@ -147,7 +147,8 @@
 
 - `events`는 경기 자체를 만들기 위한 테이블이 아니라 QR 이벤트 단위를 나타내는 상위 묶음이다.
 - 현재 MVP는 `world-cup-2026` 이벤트 하나를 사용하지만, `events`를 유지하면 향후 다른 매장 이벤트나 다른 대회 이벤트를 같은 구조로 분리할 수 있다.
-- 참여자 중복 확인은 경기 기준이 아니라 이벤트 기준으로 처리해야 하므로 `participants.event_id + phone_hash` 제약에 `events`가 필요하다.
+- 참여자 중복 확인은 경기 기준으로 처리하므로 `participants.match_id + phone_hash` 제약을 사용한다.
+- `events`는 중복 참여 기준이 아니라 경기와 결과를 하나의 QR 이벤트 아래로 묶는 상위 그룹 역할을 한다.
 - `matches`는 관리자가 실제로 추가/수정하는 경기 카드이며, 각 경기는 반드시 하나의 `events.id`에 연결된다.
 
 ## UX 보강 결정
