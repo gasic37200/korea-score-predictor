@@ -188,10 +188,42 @@ export async function getAdminMatches(): Promise<AdminMatch[]> {
 
 export async function setMatchOpen(matchId: string, isOpen: boolean) {
   const supabase = createServiceSupabaseClient();
-  const { error } = await supabase.from("matches").update({ is_open: isOpen }).eq("id", matchId);
+
+  if (!isOpen) {
+    const { error } = await supabase.from("matches").update({ is_open: false }).eq("id", matchId);
+
+    if (error) {
+      throw new Error("경기 상태를 변경하지 못했습니다.");
+    }
+
+    return;
+  }
+
+  const { data: targetMatch, error: targetError } = await supabase
+    .from("matches")
+    .select("event_id")
+    .eq("id", matchId)
+    .single()
+    .returns<Pick<MatchRow, "event_id">>();
+
+  if (targetError) {
+    throw new Error("표시할 경기 정보를 찾지 못했습니다.");
+  }
+
+  const { error } = await supabase.from("matches").update({ is_open: true }).eq("id", matchId);
 
   if (error) {
     throw new Error("경기 상태를 변경하지 못했습니다.");
+  }
+
+  const { error: closeOthersError } = await supabase
+    .from("matches")
+    .update({ is_open: false })
+    .eq("event_id", targetMatch.event_id)
+    .neq("id", matchId);
+
+  if (closeOthersError) {
+    throw new Error("다른 경기를 숨기지 못했습니다.");
   }
 }
 
@@ -222,19 +254,34 @@ export async function createMatch(input: {
   }
 
   const nextDisplayOrder = (currentMatches?.[0]?.display_order ?? -1) + 1;
-  const { error } = await supabase.from("matches").insert({
-    event_id: eventId,
-    title: input.title,
-    korea_team_name: input.koreaTeamName,
-    opponent_team_name: input.opponentTeamName,
-    match_at: input.matchAt,
-    prediction_closes_at: input.predictionClosesAt,
-    is_open: true,
-    display_order: nextDisplayOrder,
-  });
+  const { data: createdMatch, error } = await supabase
+    .from("matches")
+    .insert({
+      event_id: eventId,
+      title: input.title,
+      korea_team_name: input.koreaTeamName,
+      opponent_team_name: input.opponentTeamName,
+      match_at: input.matchAt,
+      prediction_closes_at: input.predictionClosesAt,
+      is_open: true,
+      display_order: nextDisplayOrder,
+    })
+    .select("id")
+    .single()
+    .returns<Pick<MatchRow, "id">>();
 
   if (error) {
     throw new Error("경기를 추가하지 못했습니다.");
+  }
+
+  const { error: closeOthersError } = await supabase
+    .from("matches")
+    .update({ is_open: false })
+    .eq("event_id", eventId)
+    .neq("id", createdMatch.id);
+
+  if (closeOthersError) {
+    throw new Error("새 경기 외의 다른 경기를 숨기지 못했습니다.");
   }
 }
 

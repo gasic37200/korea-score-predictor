@@ -61,7 +61,9 @@ export async function toggleMatchOpen(formData: FormData) {
 
     await setMatchOpen(matchId, isOpen);
     revalidateAdminMatchPaths();
-    notice = isOpen ? "경기를 이벤트 페이지에 표시했습니다." : "경기를 숨겼습니다.";
+    notice = isOpen
+      ? "경기를 이벤트 페이지에 표시했습니다. 다른 경기는 자동으로 숨겼습니다."
+      : "경기를 숨겼습니다.";
   } catch (error) {
     redirectWithError(error);
   }
@@ -86,12 +88,12 @@ export async function createMatchAction(formData: FormData) {
     });
 
     revalidateAdminMatchPaths();
-    notice = "새 경기를 추가했습니다. 열린 경기라 이벤트 페이지에 바로 표시됩니다.";
+    notice = "새 경기를 추가했습니다. 새 경기만 이벤트 페이지에 표시됩니다.";
   } catch (error) {
     redirectWithError(error);
   }
 
-  redirectWithNotice(notice);
+  redirectWithNotice(notice, "manage");
 }
 
 export async function updateMatchAction(formData: FormData) {
@@ -126,6 +128,7 @@ function revalidateAdminMatchPaths() {
   revalidatePath("/admin");
   revalidatePath("/admin/matches");
   revalidatePath("/event");
+  revalidatePath("/result");
 }
 
 function requiredString(formData: FormData, key: string, message: string) {
@@ -164,11 +167,11 @@ function optionalScore(value: FormDataEntryValue | null) {
   return parsed;
 }
 
-function redirectWithNotice(message: string): never {
-  redirect(`/admin/matches?notice=${encodeURIComponent(message)}`);
+function redirectWithNotice(message: string, tab: "create" | "manage" = "manage"): never {
+  redirect(`/admin/matches?tab=${tab}&notice=${encodeURIComponent(message)}`);
 }
 
 function redirectWithError(error: unknown): never {
   const message = error instanceof Error ? error.message : "경기 관리 작업에 실패했습니다.";
-  redirect(`/admin/matches?error=${encodeURIComponent(message)}`);
+  redirect(`/admin/matches?tab=manage&error=${encodeURIComponent(message)}`);
 }

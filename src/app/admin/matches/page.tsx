@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminMatchesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; notice?: string }>;
+  searchParams: Promise<{ error?: string; notice?: string; tab?: string }>;
 }) {
   const params = await searchParams;
 
@@ -28,7 +28,7 @@ export default async function AdminMatchesPage({
   return (
     <AdminMatchesShell feedback={params}>
       {result.status === "ready" ? (
-        <MatchEditor matches={result.data} />
+        <MatchEditor initialTab={params.tab === "manage" ? "manage" : "create"} matches={result.data} />
       ) : (
         <p className="rounded-lg border border-slate-200 bg-white p-5 text-sm text-slate-600">
           {result.message}

@@ -4,8 +4,16 @@ import { useState, type ReactNode } from "react";
 import { createMatchAction, toggleMatchOpen, updateMatchAction } from "@/app/admin/actions";
 import type { AdminMatch } from "@/lib/admin";
 
-export function MatchEditor({ matches }: { matches: AdminMatch[] }) {
-  const [activeTab, setActiveTab] = useState<"create" | "manage">("create");
+type MatchEditorTab = "create" | "manage";
+
+export function MatchEditor({
+  initialTab,
+  matches,
+}: {
+  initialTab?: MatchEditorTab;
+  matches: AdminMatch[];
+}) {
+  const [activeTab, setActiveTab] = useState<MatchEditorTab>(initialTab ?? "create");
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
 
   return (
