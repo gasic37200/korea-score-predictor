@@ -8,9 +8,10 @@ export function PrivacyNotice({ defaultChecked = false }: { defaultChecked?: boo
         type="checkbox"
       />
       <span>
-        이벤트 참여와 중복 확인을 위해 닉네임과 휴대폰 번호를 처리하는 데
-        동의합니다. 휴대폰 번호는 서버에서 해시 처리되며 관리자 화면에는
-        마스킹된 값만 표시됩니다.
+        이벤트 참여, 경기별 중복 확인, 당첨자 연락을 위해 닉네임과 휴대폰
+        번호를 처리하는 데 동의합니다. 관리자 화면에는 마스킹된 번호만
+        표시되며, 실제 당첨자에게 알림 문자를 보내야 할 때에만 서버에서
+        복호화된 번호를 CSV로 확인합니다.
       </span>
     </label>
   );
