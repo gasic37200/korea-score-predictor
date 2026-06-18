@@ -1,9 +1,15 @@
 import type { AdminParticipant, AdminPredictionRow, AdminWinnerRow } from "@/lib/admin";
 
-export function ParticipantTable({ participants }: { participants: AdminParticipant[] }) {
+export function ParticipantTable({
+  participants,
+  title,
+}: {
+  participants: AdminParticipant[];
+  title: string;
+}) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4">
-      <h2 className="text-lg font-bold">최근 참여자</h2>
+      <h2 className="text-lg font-bold">{title} 참여자</h2>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[420px] text-left text-sm">
           <thead className="border-b border-slate-200 text-xs text-slate-500">
@@ -14,15 +20,23 @@ export function ParticipantTable({ participants }: { participants: AdminParticip
             </tr>
           </thead>
           <tbody>
-            {participants.map((participant) => (
-              <tr key={participant.id} className="border-b border-slate-100 last:border-0">
-                <td className="py-3 pr-3 font-medium">{participant.nickname}</td>
-                <td className="py-3 pr-3 text-slate-600">{participant.maskedPhone}</td>
-                <td className="py-3 pr-3 text-slate-600">
-                  {formatDateTime(participant.createdAt)}
+            {participants.length > 0 ? (
+              participants.map((participant) => (
+                <tr key={participant.id} className="border-b border-slate-100 last:border-0">
+                  <td className="py-3 pr-3 font-medium">{participant.nickname}</td>
+                  <td className="py-3 pr-3 text-slate-600">{participant.maskedPhone}</td>
+                  <td className="py-3 pr-3 text-slate-600">
+                    {formatDateTime(participant.createdAt)}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td className="py-4 text-sm text-slate-600" colSpan={3}>
+                  아직 이 경기의 참여자가 없습니다.
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>

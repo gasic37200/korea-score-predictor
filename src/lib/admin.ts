@@ -8,6 +8,7 @@ const EVENT_SLUG = "world-cup-2026";
 
 export type AdminParticipant = {
   id: string;
+  matchId: string;
   nickname: string;
   maskedPhone: string;
   createdAt: string;
@@ -38,6 +39,7 @@ export type AdminMatch = MatchRow & {
 };
 
 export type AdminDashboardData = {
+  selectedMatchId: string | null;
   participantCount: number;
   predictionCount: number;
   matches: AdminMatch[];
@@ -61,12 +63,13 @@ type PredictionWithRelations = PredictionRow & {
     | null;
 };
 
-export async function getAdminDashboardData(): Promise<AdminDashboardData> {
+export async function getAdminDashboardData(selectedMatchId?: string): Promise<AdminDashboardData> {
   const supabase = createServiceSupabaseClient();
   const eventId = await getEventId(supabase);
 
   if (!eventId) {
     return {
+      selectedMatchId: null,
       participantCount: 0,
       predictionCount: 0,
       matches: [],
@@ -76,19 +79,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     };
   }
 
-  const [participantsResult, predictionsCountResult, matchesResult, predictionsResult] =
+  const [matchesResult, predictionsResult] =
     await Promise.all([
-      supabase
-        .from("participants")
-        .select("id,nickname,phone_last4,created_at")
-        .eq("event_id", eventId)
-        .order("created_at", { ascending: false })
-        .returns<Array<Pick<ParticipantRow, "id" | "nickname" | "phone_last4" | "created_at">>>(),
-      supabase
-        .from("predictions")
-        .select("id")
-        .eq("event_id", eventId)
-        .returns<Array<Pick<PredictionRow, "id">>>(),
       supabase
         .from("matches")
         .select("*")
@@ -105,14 +97,6 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         .returns<PredictionWithRelations[]>(),
     ]);
 
-  if (participantsResult.error) {
-    throw new Error("참여자 데이터를 불러오지 못했습니다.");
-  }
-
-  if (predictionsCountResult.error) {
-    throw new Error("예측 수를 불러오지 못했습니다.");
-  }
-
   if (matchesResult.error) {
     throw new Error("경기 데이터를 불러오지 못했습니다.");
   }
@@ -123,13 +107,42 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   const predictions = predictionsResult.data ?? [];
   const matches = withMatchStats(matchesResult.data ?? [], predictions);
+  const activeMatchId = resolveSelectedMatchId(matches, selectedMatchId);
+  const participantsResult = activeMatchId
+    ? await supabase
+        .from("participants")
+        .select("id,match_id,nickname,phone_last4,created_at")
+        .eq("event_id", eventId)
+        .eq("match_id", activeMatchId)
+        .order("created_at", { ascending: false })
+        .returns<
+          Array<Pick<ParticipantRow, "id" | "match_id" | "nickname" | "phone_last4" | "created_at">>
+        >()
+    : await supabase
+        .from("participants")
+        .select("id,match_id,nickname,phone_last4,created_at")
+        .eq("event_id", eventId)
+        .order("created_at", { ascending: false })
+        .returns<
+          Array<Pick<ParticipantRow, "id" | "match_id" | "nickname" | "phone_last4" | "created_at">>
+        >();
+
+  if (participantsResult.error) {
+    throw new Error("참여자 데이터를 불러오지 못했습니다.");
+  }
+
+  const selectedPredictions = activeMatchId
+    ? predictions.filter((prediction) => prediction.match_id === activeMatchId)
+    : predictions;
 
   return {
+    selectedMatchId: activeMatchId,
     participantCount: participantsResult.data?.length ?? 0,
-    predictionCount: predictionsCountResult.data?.length ?? 0,
+    predictionCount: selectedPredictions.length,
     matches,
     participants: (participantsResult.data ?? []).slice(0, 20).map((participant) => ({
       id: participant.id,
+      matchId: participant.match_id,
       nickname: participant.nickname,
       maskedPhone: maskPhoneLast4(participant.phone_last4),
       createdAt: participant.created_at,
@@ -151,6 +164,14 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
       predictedScore: `${prediction.korea_score}:${prediction.opponent_score}`,
     })),
   };
+}
+
+function resolveSelectedMatchId(matches: AdminMatch[], requestedMatchId?: string) {
+  if (requestedMatchId && matches.some((match) => match.id === requestedMatchId)) {
+    return requestedMatchId;
+  }
+
+  return matches.find((match) => match.is_open)?.id ?? matches[0]?.id ?? null;
 }
 
 export async function getAdminMatches(): Promise<AdminMatch[]> {

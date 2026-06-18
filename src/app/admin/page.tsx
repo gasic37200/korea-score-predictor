@@ -7,7 +7,13 @@ import { getAdminDashboardData } from "@/lib/admin";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ matchId?: string }>;
+}) {
+  const params = await searchParams;
+
   if (!isAdminConfigured()) {
     return <AdminShell title="관리자 설정 필요" description="ADMIN_PASSWORD_HASH가 필요합니다." />;
   }
@@ -20,7 +26,7 @@ export default async function AdminPage() {
     );
   }
 
-  const result = await loadDashboardData();
+  const result = await loadDashboardData(params.matchId);
 
   return (
     <AdminShell
@@ -31,17 +37,73 @@ export default async function AdminPage() {
       {result.status === "ready" ? (
         <div className="flex flex-col gap-4">
           <section className="grid grid-cols-2 gap-3">
-            <Metric label="참여자" value={result.data.participantCount} />
-            <Metric label="예측 수" value={result.data.predictionCount} />
+            <Metric label="선택 경기 참여자" value={result.data.participantCount} />
+            <Metric label="선택 경기 예측 수" value={result.data.predictionCount} />
           </section>
+          <MatchParticipantFilter
+            matches={result.data.matches}
+            selectedMatchId={result.data.selectedMatchId}
+          />
           <WinnerTable winners={result.data.winners} />
-          <ParticipantTable participants={result.data.participants} />
+          <ParticipantTable
+            participants={result.data.participants}
+            title={
+              result.data.matches.find((match) => match.id === result.data.selectedMatchId)?.title ??
+              "선택된 경기"
+            }
+          />
           <PredictionTable predictions={result.data.predictions} />
         </div>
       ) : (
         <AdminNotice message={result.message} />
       )}
     </AdminShell>
+  );
+}
+
+function MatchParticipantFilter({
+  matches,
+  selectedMatchId,
+}: {
+  matches: Array<{ id: string; title: string; is_open: boolean; predictionCount: number }>;
+  selectedMatchId: string | null;
+}) {
+  if (matches.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-bold">경기별 참여자 보기</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            경기를 선택하면 아래 참여자 목록이 해당 경기 기준으로 바뀝니다.
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {matches.map((match, index) => {
+          const active = match.id === selectedMatchId;
+
+          return (
+            <Link
+              className={
+                active
+                  ? "rounded-full bg-red-700 px-3 py-2 text-sm font-bold text-white"
+                  : "rounded-full border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700"
+              }
+              href={`/admin?matchId=${match.id}`}
+              key={match.id}
+            >
+              {index + 1}번 경기 · {match.title}
+              {match.is_open ? " · 표시 중" : ""}
+              <span className="ml-2 text-xs opacity-80">{match.predictionCount}명</span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -111,9 +173,9 @@ function AdminNotice({ message }: { message: string }) {
   );
 }
 
-async function loadDashboardData() {
+async function loadDashboardData(matchId?: string) {
   try {
-    return { status: "ready" as const, data: await getAdminDashboardData() };
+    return { status: "ready" as const, data: await getAdminDashboardData(matchId) };
   } catch (error) {
     return {
       status: "setup" as const,
